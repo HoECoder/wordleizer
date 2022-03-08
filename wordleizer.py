@@ -5,26 +5,20 @@ import click
 
 @click.group(chain=True)
 @click.pass_context
-def cli(ctx: click.Context):
-    """Wordle solver.
-
-    Chain together any of the commands to filter the list of potential words
-    """
-    ctx.ensure_object(dict)
-
-@cli.command("load")
-@click.pass_context
 @click.option("-f",
               "--file",
               "word_list_file",
               type=click.Path(exists=True, readable=True),
               default="five_letter_words.txt")
-def load(ctx: click.Context, word_list_file: str):
-    "Loads the list of five letter words"
+def cli(ctx: click.Context, word_list_file: str):
+    """Wordle solver.
+
+    Chain together any of the commands to filter the list of potential words
+    """
+    ctx.ensure_object(dict)
     with open(word_list_file, encoding="utf-8") as _f:
         words = [line.strip() for line in _f if line.strip()]
         ctx.obj["words"] = words
-    return "load"
 
 @cli.command("contains")
 @click.pass_context
@@ -115,8 +109,9 @@ def letters_not_in_position(ctx: click.Context, patterns: Sequence[str]):
 
 @cli.result_callback()
 @click.pass_context
-def process_results(ctx: click.Context, results):
+def process_results(ctx: click.Context, results, word_list_file: str):
     """Shows the results"""
+    click.echo(f"Used: '{word_list_file}'")
     functions = " ".join(results)
     click.echo(f"Ran: {functions}")
     if "remaining_words" in ctx.obj:
