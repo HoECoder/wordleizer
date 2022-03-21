@@ -120,7 +120,7 @@ def process_results(ctx: click.Context, results, word_list_file: str):
         accum = []
         click.echo(f"Found {len(remainders)} candidates")
         for idx, word in enumerate(remainders):
-            if idx > 0 and idx % 13 == 0:
+            if idx > 0 and idx % 12 == 0:
                 lines.append(" ".join(accum))
                 accum = []
             accum.append(word)
