@@ -3,13 +3,16 @@
 from typing import Sequence
 import click
 
+from wordleizer_functions import contains, letters_in_position, letters_not_in_position, not_contains
+
 @click.group(chain=True)
 @click.pass_context
 @click.option("-f",
               "--file",
               "word_list_file",
               type=click.Path(exists=True, readable=True),
-              default="five_letter_words.txt")
+              default="five_letter_words.txt",
+              help="Line oriented list of words to use to search")
 def cli(ctx: click.Context, word_list_file: str):
     """Wordle solver.
 
@@ -24,15 +27,12 @@ def cli(ctx: click.Context, word_list_file: str):
 @click.pass_context
 @click.argument("search_letters",
                 type=str)
-def contains(ctx: click.Context, search_letters: str):
+def click_contains(ctx: click.Context, search_letters: str):
     """Returns the words containing all the given search letters, in any order"""
     if not ctx.obj["words"]:
         return
     remaining_words = ctx.obj.get("remaining_words", ctx.obj["words"])
-    candidates = []
-    for word in remaining_words:
-        if all(c in word for c in search_letters):
-            candidates.append(word)
+    candidates = contains(remaining_words, search_letters)
     ctx.obj["remaining_words"] = candidates
     return "contains"
 
@@ -40,72 +40,52 @@ def contains(ctx: click.Context, search_letters: str):
 @click.pass_context
 @click.argument("search_letters",
                 type=str)
-def not_contains(ctx: click.Context, search_letters: str):
+def click_not_contains(ctx: click.Context, search_letters: str):
     """Returns the words not containing all the given search letters, in any order"""
     if not ctx.obj["words"]:
         return
     remaining_words = ctx.obj.get("remaining_words", ctx.obj["words"])
-    candidates = []
-    for word in remaining_words:
-        if any(c in word for c in search_letters):
-            continue
-        candidates.append(word)
+    candidates = not_contains(remaining_words, search_letters)
     ctx.obj["remaining_words"] = candidates
     return "not_contains"
 
 @cli.command("letters_in_position")
 @click.pass_context
 @click.argument("search_word", type=str)
-def letters_in_position(ctx: click.Context, search_word: str):
+def click_letters_in_position(ctx: click.Context, search_word: str):
     """Finds only words with letters in the given position, use _ for blanks/wildcards"""
     if not ctx.obj["words"]:
         return
     remaining_words = ctx.obj.get("remaining_words", ctx.obj["words"])
-    candidates = []
-    for word in remaining_words:
-        has_words = []
-        for idx, letter in enumerate(search_word):
-            if letter == "_":
-                has_words.append(True)
-                continue
-            if word[idx] == letter:
-                has_words.append(True)
-            else:
-                has_words.append(False)
-        if all(has_words):
-            candidates.append(word)
+    candidates = letters_in_position(remaining_words, search_word)
     ctx.obj["remaining_words"] = candidates
     return "letters_in_position"
 
 @cli.command("letters_not_in_position")
 @click.pass_context
 @click.option("-p", "--pattern", "patterns", multiple=True, default=[], help="Pattern of where letters are not")
-def letters_not_in_position(ctx: click.Context, patterns: Sequence[str]):
+def click_letters_not_in_position(ctx: click.Context, patterns: Sequence[str]):
     """Finds only words with letters not in the given position, use _ for blanks/wildcards"""
     if not ctx.obj["words"]:
         return
     remaining_words = ctx.obj.get("remaining_words", ctx.obj["words"])
-    candidates = []
-    for word in remaining_words:
-        pattern_matches = []
-        for pattern in patterns:
-            missed_letters = []
-            for idx, letter in enumerate(pattern):
-                if letter == "_":
-                    missed_letters.append(True)
-                if letter != word[idx]:
-                    missed_letters.append(True)
-                else:
-                    missed_letters.append(False)
-            if all(missed_letters):
-                pattern_matches.append(True)
-            else:
-                pattern_matches.append(False)
-        if all(pattern_matches):
-            candidates.append(word)
+    candidates = letters_not_in_position(remaining_words, patterns)
     ctx.obj["remaining_words"] = candidates
 
     return "letters_not_in_position"
+
+def prepare_output_lines(remaining_words: Sequence[str], words_per_line: int) -> str:
+    """Nicely formats the remaining words with words_per_line on each line"""
+    lines = []
+    accum = []
+    for idx, word in enumerate(remaining_words):
+        if idx > 0 and idx % words_per_line == 0:
+            lines.append(" ".join(accum))
+            accum = []
+        accum.append(word)
+    if accum:
+        lines.append(" ".join(accum))
+    return "\n".join(lines)
 
 @cli.result_callback()
 @click.pass_context
@@ -115,18 +95,8 @@ def process_results(ctx: click.Context, results, word_list_file: str):
     functions = " ".join(results)
     click.echo(f"Ran: {functions}")
     if "remaining_words" in ctx.obj:
-        remainders = ctx.obj["remaining_words"]
-        lines = []
-        accum = []
-        click.echo(f"Found {len(remainders)} candidates")
-        for idx, word in enumerate(remainders):
-            if idx > 0 and idx % 12 == 0:
-                lines.append(" ".join(accum))
-                accum = []
-            accum.append(word)
-        if accum:
-            lines.append(" ".join(accum))
-        click.echo("\n".join(lines))
+        click.echo(f"Found: {len(ctx.obj['remaining_words'])} candidates")
+        click.echo(prepare_output_lines(ctx.obj["remaining_words"], 12))
 
 if __name__ == "__main__":
     cli() #pylint: disable=no-value-for-parameter
